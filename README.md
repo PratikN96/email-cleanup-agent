@@ -77,7 +77,7 @@ The first few runs will be **dry-runs** (report only, no deletion). To enable ac
 ## Tech Stack
 
 - **Python 3.12** — `imaplib`, `email`, `requests`
-- **OpenRouter** — DeepSeek V4 Flash for email classification
+- **OpenRouter** — Google Gemini 2.0 Flash for email classification
 - **GitHub Actions** — Scheduled CI runner
 - **Telegram Bot API** — Daily reports
 

@@ -2,7 +2,7 @@
 """
 Email Cleanup Agent — runs in GitHub Actions.
 
-Uses OpenRouter (DeepSeek V4 Flash) to read and classify each email
+Uses OpenRouter (Google Gemini 2.0 Flash) to read and classify each email
 as PROMOTIONAL or KEEP, then deletes promos and sends a Telegram report.
 """
 
@@ -22,7 +22,7 @@ IMAP_PASS = os.getenv("IMAP_PASS")          # App password if 2FA
 IMAP_PORT = int(os.getenv("IMAP_PORT", "993"))
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
-OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "deepseek/deepseek-v4-flash")
+OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "google/gemini-2.0-flash-001")
 
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
