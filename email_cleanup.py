@@ -96,19 +96,33 @@ Reply with ONLY one word: "promo" or "keep". Then a short reason on the next lin
 
 def telegram_send(message):
     """Send report to Telegram."""
-    if not TELEGRAM_BOT_TOKEN:
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        print("⚠ Telegram not configured — skipping notification.")
         return
-    requests.post(
-        f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
-        json={"chat_id": TELEGRAM_CHAT_ID, "text": message, "parse_mode": "Markdown"},
-        timeout=10,
-    )
+
+    for parse_mode in ("Markdown", None):
+        payload = {"chat_id": TELEGRAM_CHAT_ID, "text": message}
+        if parse_mode:
+            payload["parse_mode"] = parse_mode
+        resp = requests.post(
+            f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
+            json=payload,
+            timeout=10,
+        )
+        result = resp.json()
+        if result.get("ok"):
+            print("✅ Telegram report sent.")
+            return
+        if parse_mode:
+            print(f"⚠ Telegram Markdown send failed ({result.get('description')}) — retrying as plain text.")
+        else:
+            print(f"❌ Telegram send failed: {result.get('description')}")
 
 
 # ── Main ──
 
 def main():
-    missing = [v for v in ("IMAP_USER", "IMAP_PASS", "OPENROUTER_API_KEY") if not os.getenv(v)]
+    missing = [v for v in ("IMAP_USER", "IMAP_PASS", "OPENROUTER_API_KEY", "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID") if not os.getenv(v)]
     if missing:
         raise EnvironmentError(f"Missing required secrets: {', '.join(missing)}")
 
