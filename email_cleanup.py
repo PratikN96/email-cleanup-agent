@@ -8,10 +8,9 @@ as PROMOTIONAL or KEEP, then deletes promos and sends a Telegram report.
 
 import imaplib
 import email
-import json
 import os
-import sys
 import html
+import requests
 from email.header import decode_header
 import re
 
@@ -109,65 +108,69 @@ def telegram_send(message):
 # ── Main ──
 
 def main():
-    import requests  # lazy import for GitHub Actions env
+    missing = [v for v in ("IMAP_USER", "IMAP_PASS", "OPENROUTER_API_KEY") if not os.getenv(v)]
+    if missing:
+        raise EnvironmentError(f"Missing required secrets: {', '.join(missing)}")
 
     print(f"📧 Connecting to {IMAP_SERVER}:{IMAP_PORT} ...")
     mail = imaplib.IMAP4_SSL(IMAP_SERVER, IMAP_PORT)
     mail.login(IMAP_USER, IMAP_PASS)
     mail.select("INBOX")
 
-    status, data = mail.search(None, "UNSEEN")
-    if status != "OK" or not data[0]:
-        print("No new emails.")
-        telegram_send("✅ **Email Cleanup** — No new emails today.")
-        return
-
-    ids = data[0].split()[:MAX_EMAILS]
-    print(f"Found {len(ids)} unread emails. Processing ...")
-
     stats = {"checked": 0, "deleted": 0, "kept": 0, "errors": 0}
     report_lines = []
 
-    for eid in ids:
-        status, data = mail.fetch(eid, "(RFC822)")
-        if status != "OK":
-            continue
+    try:
+        status, data = mail.search(None, "UNSEEN")
+        if status != "OK" or not data[0]:
+            print("No new emails.")
+            telegram_send("✅ **Email Cleanup** — No new emails today.")
+            return
 
-        msg = email.message_from_bytes(data[0][1])
-        subject = decode_str(msg.get("Subject", "")) or "(no subject)"
-        sender = decode_str(msg.get("From", "")) or "(unknown)"
+        ids = data[0].split()[:MAX_EMAILS]
+        print(f"Found {len(ids)} unread emails. Processing ...")
 
-        body = ""
-        if msg.is_multipart():
-            for part in msg.walk():
-                if part.get_content_type() == "text/plain":
-                    body = part.get_payload(decode=True).decode("utf-8", errors="ignore")
-                    break
-                elif part.get_content_type() == "text/html":
-                    body = part.get_payload(decode=True).decode("utf-8", errors="ignore")
-        else:
-            body = msg.get_payload(decode=True).decode("utf-8", errors="ignore")
+        for eid in ids:
+            status, data = mail.fetch(eid, "(RFC822)")
+            if status != "OK":
+                continue
 
-        body_clean = clean_text(body)
+            msg = email.message_from_bytes(data[0][1])
+            subject = decode_str(msg.get("Subject", "")) or "(no subject)"
+            sender = decode_str(msg.get("From", "")) or "(unknown)"
 
-        label, reason = classify_with_llm(subject, sender, body_clean)
+            body = ""
+            if msg.is_multipart():
+                for part in msg.walk():
+                    if part.get_content_type() == "text/plain":
+                        body = part.get_payload(decode=True).decode("utf-8", errors="ignore")
+                        break
+                    elif part.get_content_type() == "text/html" and not body:
+                        body = part.get_payload(decode=True).decode("utf-8", errors="ignore")
+            else:
+                body = msg.get_payload(decode=True).decode("utf-8", errors="ignore")
 
-        if label == "promo":
-            if not DRY_RUN:
-                mail.store(eid, "+FLAGS", "\\Deleted")
-            stats["deleted"] += 1
-            report_lines.append(f"🗑 `{subject[:60]}` — {reason}")
-        elif label == "keep":
-            stats["kept"] += 1
-        else:
-            stats["errors"] += 1
-            report_lines.append(f"⚠ `{subject[:60]}` — {reason}")
+            body_clean = clean_text(body)
 
-        stats["checked"] += 1
+            label, reason = classify_with_llm(subject, sender, body_clean)
 
-    if not DRY_RUN:
-        mail.expunge()
-    mail.logout()
+            if label == "promo":
+                if not DRY_RUN:
+                    mail.store(eid, "+FLAGS", "\\Deleted")
+                stats["deleted"] += 1
+                report_lines.append(f"🗑 `{subject[:60]}` — {reason}")
+            elif label == "keep":
+                stats["kept"] += 1
+            else:
+                stats["errors"] += 1
+                report_lines.append(f"⚠ `{subject[:60]}` — {reason}")
+
+            stats["checked"] += 1
+
+        if not DRY_RUN:
+            mail.expunge()
+    finally:
+        mail.logout()
 
     # ── Report ──
     report = (
