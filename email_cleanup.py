@@ -85,14 +85,17 @@ Reply with ONLY one word: "promo" or "keep". Then a short reason on the next lin
             timeout=30,
         )
         if resp.status_code == 200:
-            break
-        if attempt < 2:
+            result = resp.json()
+            if "choices" in result:
+                break
+            print(f"⚠ API attempt {attempt + 1} returned unexpected response: {str(result)[:200]}, retrying in 2s...")
+        else:
             print(f"⚠ API attempt {attempt + 1} failed ({resp.status_code}), retrying in 2s...")
+        if attempt < 2:
             time.sleep(2)
     else:
-        return "error", f"API failed after 3 attempts: {resp.status_code}: {resp.text[:200]}"
+        return "error", f"API failed after 3 attempts: {resp.text[:200]}"
 
-    result = resp.json()
     text = result["choices"][0]["message"]["content"].strip().lower()
     lines = text.split("\n")
     label = lines[0].strip()
@@ -190,7 +193,10 @@ def main():
         if not DRY_RUN:
             mail.expunge()
     finally:
-        mail.logout()
+        try:
+            mail.logout()
+        except Exception:
+            pass
 
     # ── Report ──
     report = (
