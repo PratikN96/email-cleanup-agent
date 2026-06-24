@@ -9,6 +9,7 @@ as PROMOTIONAL or KEEP, then deletes promos and sends a Telegram report.
 import imaplib
 import email
 import os
+import time
 import html
 import requests
 from email.header import decode_header
@@ -27,7 +28,7 @@ TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
 DRY_RUN = os.getenv("DRY_RUN", "false").lower() == "true"
-MAX_EMAILS = int(os.getenv("MAX_EMAILS", "20"))
+MAX_EMAILS = int(os.getenv("MAX_EMAILS", "50"))
 
 # ── Helpers ──
 
@@ -73,18 +74,23 @@ Reply with ONLY one word: "promo" or "keep". Then a short reason on the next lin
         "temperature": 0.1,
     }
 
-    resp = requests.post(
-        "https://openrouter.ai/api/v1/chat/completions",
-        headers={
-            "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-            "Content-Type": "application/json",
-        },
-        json=payload,
-        timeout=30,
-    )
-
-    if resp.status_code != 200:
-        return "error", f"API error {resp.status_code}: {resp.text[:200]}"
+    for attempt in range(3):
+        resp = requests.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                "Content-Type": "application/json",
+            },
+            json=payload,
+            timeout=30,
+        )
+        if resp.status_code == 200:
+            break
+        if attempt < 2:
+            print(f"⚠ API attempt {attempt + 1} failed ({resp.status_code}), retrying in 2s...")
+            time.sleep(2)
+    else:
+        return "error", f"API failed after 3 attempts: {resp.status_code}: {resp.text[:200]}"
 
     result = resp.json()
     text = result["choices"][0]["message"]["content"].strip().lower()
