@@ -96,7 +96,11 @@ Reply with ONLY one word: "promo" or "keep". Then a short reason on the next lin
     else:
         return "error", f"API failed after 3 attempts: {resp.text[:200]}"
 
-    text = result["choices"][0]["message"]["content"].strip().lower()
+    content = result["choices"][0]["message"].get("content")
+    if not content:
+        finish_reason = result["choices"][0].get("finish_reason", "unknown")
+        return "keep", f"null content from model (finish_reason={finish_reason}), defaulting to keep"
+    text = content.strip().lower()
     lines = text.split("\n")
     label = lines[0].strip()
     reason = lines[1] if len(lines) > 1 else ""
