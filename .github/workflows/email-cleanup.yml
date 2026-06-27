@@ -24,7 +24,7 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Run email cleanup (DRY RUN)
+      - name: Run email cleanup
         env:
           IMAP_USER: ${{ secrets.IMAP_USER }}
           IMAP_PASS: ${{ secrets.IMAP_PASS }}
@@ -32,6 +32,6 @@ jobs:
           OPENROUTER_MODEL: "deepseek/deepseek-v4-flash"
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          DRY_RUN: "true"
+          DRY_RUN: "false"
           MAX_EMAILS: "50"
         run: python email_cleanup.py
